@@ -25,12 +25,14 @@ function streamGame(id::String)
     lastMove = nothing
     b = startboard()
     domove(b, "b2b3")
+    @time JSON.parse("{}")
     println("streaming Game with id $id")
     r = HTTP.open("GET", streamUrl, defaultHeader) do http
         while !eof(http)
             s = String(readavailable(http))
             length(s) > 1 && println(length(s))
             if !isnothing(findfirst("{", s))
+                @show b
                 println("now parsing in streamGame")
                 state = @time JSON.parse(s)
                 if state["type"] == "gameFull"
@@ -80,7 +82,9 @@ function streamGame(id::String)
                         @show pos
                         @show lastMove
                         println(moves[max(pos, 1):end])
-                        if !isempty(moves)
+                        if pos + 1 == lastindex(moves)
+                            domove!(b, moves[end])
+                        elseif !isempty(moves)
                             println("moves not empty, applying...")
                             domoves!(b, moves[pos+1:end]...)
                         end
@@ -91,6 +95,7 @@ function streamGame(id::String)
                         lastMove = @time makeMove!(id, b, variant = variant)
                         println("to make move")
                     end
+                    @show b
                     println("reached end of gameState evaluation")
                 end
             end
@@ -104,51 +109,56 @@ function runBot()
     eventUrl = baseUrl * "/stream/event"
     challengeUrl = baseUrl * "/challenge"
     retVal = 0
+    #trigger precompilation
+    @time JSON.parse("{}")
     println("opening event stream")
-    r = HTTP.open("GET", eventUrl, defaultHeader) do http
-        while !eof(http)
-            s = String(readavailable(http))
-            length(s) == 1 && print("\rbot still alive")
-            if !isnothing(findfirst("{", s))
-                println("now parsing in runBot")
-                state = @time JSON.parse(s)
-                println(typeof(state))
-                println(state["type"])
-                if state["type"] == "challenge"
-                    challenger = state["challenge"]["challenger"]["name"]
-                    variant = lowercase(state["challenge"]["variant"]["key"])
-                    challengeId = state["challenge"]["id"]
-                    println(
-                        """incoming $variant challenge
-                            from $challenger
-                            with id $challengeId""",
-                    )
-                    if lowercase(challenger) == lowercase(myId)
-                        continue
+    while true
+        r = HTTP.open("GET", eventUrl, defaultHeader) do http
+            while !eof(http)
+                s = String(readavailable(http))
+                length(s) == 1 && continue #print("\rbot still alive")
+                if !isnothing(findfirst("{", s))
+                    println("now parsing in runBot")
+                    state = @time JSON.parse(s)
+                    println(typeof(state))
+                    println(state["type"])
+                    if state["type"] == "challenge"
+                        challenger = state["challenge"]["challenger"]["name"]
+                        variant =
+                            lowercase(state["challenge"]["variant"]["key"])
+                        challengeId = state["challenge"]["id"]
+                        println("""incoming $variant challenge
+                                    from $challenger
+                                    with id $challengeId""")
+                        if lowercase(challenger) == lowercase(myId)
+                            continue
+                        end
+                        if variant in [
+                            "racingkings",
+                            "horde",
+                            "kingofthehill",
+                            "antichess",
+                            "crazyhouse",
+                        ]
+                            println("declaing challenge with variant $variant")
+                            specificUrl =
+                                challengeUrl * "/$challengeId/decline"
+                            HTTP.request("POST", specificUrl, defaultHeader)
+                        else
+                            println("now accepting challenge")
+                            specificUrl =
+                                challengeUrl * "/$challengeId/accept"
+                            HTTP.request("POST", specificUrl, defaultHeader)
+                        end
+                    elseif state["type"] == "gameStart"
+                        println("now async starting stream")
+                        @async streamGame(state["game"]["id"])
                     end
-                    if variant in [
-                        "racingkings",
-                        "horde",
-                        "kingofthehill",
-                        "antichess",
-                        "crazyhouse",
-                    ]
-                        println("declaing challenge with variant $variant")
-                        specificUrl = challengeUrl * "/$challengeId/decline"
-                        HTTP.request("POST", specificUrl, defaultHeader)
-                    else
-                        println("now accepting challenge")
-                        specificUrl = challengeUrl * "/$challengeId/accept"
-                        HTTP.request("POST", specificUrl, defaultHeader)
-                    end
-                elseif state["type"] == "gameStart"
-                    println("now async starting stream")
-                    @async streamGame(state["game"]["id"])
+                    #write("state$(length(s)).bson", state)
+                    #println("written to file")
                 end
-                #write("state$(length(s)).bson", state)
-                #println("written to file")
+                #println(String(readavailable(http)))
             end
-            #println(String(readavailable(http)))
         end
     end
     return retVal
