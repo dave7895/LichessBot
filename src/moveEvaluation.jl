@@ -1,64 +1,64 @@
 function chooseMove(b::Chess.Board; variant = "standard")
-    println("choosing move", b)
+    @debug("choosing move", b)
     move = search_in_opening_books(b; variant = variant)
     if !isnothing(move)
-        println("returning bookmove")
+        @debug("returning bookmove")
         return move
     end
-    println("no move found in book")
+    @debug("no move found in book")
     myColor = sidetomove(b)
     possible = moves(b)
 
     if !isempty(possible)
         freeRealEstate = attacked_but_undefended(b, -myColor)
         anyFree = !isempty(freeRealEstate)
-        println("freeRealEstate: ")
+        @debug("freeRealEstate: ")
         pprint(b, highlight = freeRealEstate)
         takeable = attacked_with_pieces(b, -myColor)
         anyTakeable = !isempty(takeable)
-        println("takeable squares/pieces")
+        @debug("takeable squares/pieces")
         pprint(b, highlight = takeable)
         takingFree = Move[]
         takingAny = Move[]
-        println("$(length(possible)) moves to evaluate")
+        @debug("$(length(possible)) moves to evaluate")
         mCounter = 0
         bestPawnEval = 0
         bestPawnEvalFor = nothing
-        println("starting loop")
+        @debug("starting loop")
         for m in possible
-            println("start of iteration")
+            @debug("start of iteration")
             undo = domove!(b, m)
-            println("did move, undo information saved")
-            @time if ischeckmate(b)
-                println("found checkmate")
+            @debug("did move, undo information saved")
+            if ischeckmate(b)
+                @debug("found checkmate")
                 undomove!(b, undo)
                 return m
             end
-            println("checked for amte")
+            @debug("checked for amte")
             if any(mov -> move_is_mate(b, mov), moves(b))
-                println("skipping move to not get mated in 1")
+                @debug("skipping move to not get mated in 1")
                 undomove!(b, undo)
                 continue
             end
-            println("checked for incoming mate")
+            @debug("checked for incoming mate")
             if isstalemate(b)
-                println("skipping move to avoid stalemating")
+                @debug("skipping move to avoid stalemating")
                 undomove!(b, undo)
                 continue
             end
             pE = pawnEval(b, myColor)
-            println("pawnEval done")
+            @debug("pawnEval done")
             if pE > bestPawnEval
                 bestPawnEval = pE
                 bestPawnEvalFor = m
             end
             undomove!(b, undo)
-            @time if anyFree && to(m) in freeRealEstate
-                println("found move that takes unprotected")
+            if anyFree && to(m) in freeRealEstate
+                @debug("found move that takes unprotected")
                 @show takingFree
-                println(typeof(m))
+                @debug(typeof(m))
                 push!(takingFree, m)
-                println(takingFree)
+                @debug(takingFree)
                 #return m
             elseif anyTakeable && to(m) in takeable
                 takingValue = value(pieceon(b, from(m)))
@@ -66,33 +66,33 @@ function chooseMove(b::Chess.Board; variant = "standard")
                 @show takingValue
                 @show takenValue
                 if takingValue <= takenValue
-                    println("found move that takes higher valued but protected")
+                    @debug("found move that takes higher valued but protected")
                     push!(takingAny, m)
                 end
             end
             mCounter += 1
-            println("\r", mCounter, "/", length(possible), " evaluated")
+            @debug("\r", mCounter, "/", length(possible), " evaluated")
         end
         @show takingAny
         @show takingFree
         if !isempty(takingFree)
-            println("returning random take of unprotected")
+            @debug("returning random take of unprotected")
             return rand(takingFree)
         end
         if !isempty(takingAny)
-            println("returning random move that takes higher valued")
+            @debug("returning random move that takes higher valued")
             return rand(takingAny)
         end
         if !isnothing(bestPawnEvalFor)
             return bestPawnEvalFor
         end
-        println("returning completely random move")
+        @debug("returning completely random move")
         return rand(possible)
         if !isempty(takingAny)
-            println("returning random move that takes higher valued")
+            @debug("returning random move that takes higher valued")
             return rand(takingAny)
         end
-        println("returning completely random move, no mate no free")
+        @debug("returning completely random move, no mate no free")
         return rand(possible)
     end
     move
@@ -153,7 +153,7 @@ end
 
 function search_in_opening_books(b; variant = "standard")
     if variant == "atomic"
-        move = @time pickbookmove(
+        move = pickbookmove(
             b,
             bookfile = "/home/dave/LichessGames/atomicOpening.obk",
         )
@@ -163,7 +163,7 @@ function search_in_opening_books(b; variant = "standard")
             bookfile = "/home/dave/LichessGames/lichess_elite.obk",
         )
         if isnothing(move)
-            println("no move found in elite db, looking in own games")
+            @debug("no move found in elite db, looking in own games")
             move = pickbookmove(
                 b,
                 bookfile = "/home/dave/LichessGames/myGames.obk",

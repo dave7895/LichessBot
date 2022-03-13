@@ -11,10 +11,11 @@ function upgradeToBot(token = token)
         status_exception = false,
     )
     if r.status != 200
-        println(r.status)
-        println(String(r.body))
+        @warn(r.status)
+        @warn(String(r.body))
+        @warn "Couldn't convert account"
     else
-        println("Successfully upgraded account to Bot account")
+        @info("Successfully upgraded account to Bot account")
     end
 end
 
