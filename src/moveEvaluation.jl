@@ -1,4 +1,4 @@
-function chooseMove(b::Chess.Board; variant = "standard")
+function oldChooseMove(b::Chess.Board; variant = "standard")
     @debug("choosing move", b)
     move = search_in_opening_books(b; variant = variant)
     if !isnothing(move)
@@ -63,8 +63,8 @@ function chooseMove(b::Chess.Board; variant = "standard")
             elseif anyTakeable && to(m) in takeable
                 takingValue = value(pieceon(b, from(m)))
                 takenValue = value(pieceon(b, to(m)))
-                @show takingValue
-                @show takenValue
+                @debug "takingValue = $takingValue"
+                @debug "takenValue = $takenValue"
                 if takingValue <= takenValue
                     @debug("found move that takes higher valued but protected")
                     push!(takingAny, m)
@@ -120,7 +120,15 @@ function attacked_but_undefended(board, color)
     attacked ∩ -defended ∩ pieces(board, color)
 end
 
-function attacked_with_pieces(board, color)
+function attacked_but_undefended(board, color, attacked)
+    defended = SS_EMPTY
+    for s ∈ pieces(board, color)
+        defended = defended ∪ attacksfrom(board, s)
+    end
+    attacked ∩ -defended
+end
+
+function attacked_with_pieces(board::Board, color = sidetomove(board))
     attacker = -color
     attacked = SS_EMPTY
     for s ∈ pieces(board, attacker)
@@ -173,14 +181,138 @@ function search_in_opening_books(b; variant = "standard")
     return move
 end
 
-function pawnEval(b::Board, c::PieceColor, m::Union{Move,Nothing} = nothing)
+function pawnEval(b::Board, c::PieceColor, m::Move)
     undo = nothing
     homerank = c == WHITE ? RANK_1 : RANK_8
-    if !isnothing(m)
-        undo = domove!(b, m)
-    end
+    undo = domove!(b, m)
     myPawns = pawns(b, c)
     isempty(myPawns) && return 0
-    isnothing(undo) || undomove!(b, undo)
+    undomove!(b, undo)
     sum(square -> distance(homerank, rank(square))^2, myPawns)
+end
+
+function pawnEval(b::Board, c::PieceColor)
+    homerank = c == WHITE ? RANK_1 : RANK_8
+    myPawns = pawns(b, c)
+    isempty(myPawns) && return 0
+    sum(square -> distance(homerank, rank(square))^2, myPawns)
+end
+
+
+colorMult = Dict{Chess.PieceColor,Int}(((Chess.WHITE, 1), (Chess.BLACK, -1)))
+
+pVals = [100, 300, 300, 500, 900, 0, -1000]
+
+function pieceValue(p::Piece)
+    pVals[ptype(p).val%8]
+end
+
+function simpleEval(
+    g::Union{Game,SimpleGame},
+    d::Integer = 1;
+    matescore::Integer = 10000,
+)
+    isdraw(g) && return 0
+    simpleEval(board(g), d; matescore = matescore)
+end
+
+function simpleEval(b::Board, d::Integer = 1; matescore::Integer = 10000)
+    score = 0
+    if ischeckmate(b)
+        return -max(d, 1) * matescore
+    end
+    if isdraw(b)
+        return 0
+    end
+    c = sidetomove(b)
+    multiplier = colorMult[c]
+    for i = 1:14
+        p = Piece(i)
+        !isok(p) && continue
+        myPiece = multiplier * colorMult[pcolor(p)]
+        score += pieceValue(p) * myPiece * count_ones(pieces(b, p).val)
+    end
+    if count_ones(knights(b, c).val) > 1
+        score += 50
+    end
+
+    if count_ones(bishops(b, c).val) > 1
+        score += 50
+    end
+
+    if count_ones(knights(b, -c).val) > 1
+        score -= 50
+    end
+
+    if count_ones(bishops(b, -c).val) > 1
+        score -= 50
+    end
+
+    attacked = attacked_with_pieces(b, sidetomove(b))
+    for s in attacked
+        score += pieceValue(pieceon(b, s)) ÷ 5
+    end
+    undefended = attacked_but_undefended(b, sidetomove(b), attacked)
+    for s in undefended
+        score += pieceValue(pieceon(b, s)) ÷ 2
+    end
+
+    attacked = attacked_with_pieces(b, -sidetomove(b))
+    for s in attacked
+        score -= pieceValue(pieceon(b, s)) ÷ 5
+    end
+    undefended = attacked_but_undefended(b, -sidetomove(b), attacked)
+    for s in undefended
+        score -= pieceValue(pieceon(b, s)) ÷ 2
+    end
+    #score += attacked_with_pieces(b, sidetomove(b))÷3
+    score += pawnEval(b, c)
+    score
+end
+
+reallySimpleEval(g::Union{Game,SimpleGame}, d = 1; matescore = 10000)::Integer =
+    isdraw(g) ? 0 : reallySimpleEval(board(g), d; matescore = matescore)
+
+function reallySimpleEval(b::Board, d::Integer = 1; matescore::Integer = 10000)
+    score = 0
+    if ischeckmate(b)
+        return -max(d, 1) * matescore
+    end
+    if isdraw(b)
+        return 0
+    end
+    any(m->LichessBot.move_is_mate(b,m), moves(b)) && return max(d, 1) * matescore
+    c = sidetomove(b)
+    multiplier = colorMult[c]
+    for i = 1:14
+        p = Piece(i)
+        !isok(p) && continue
+        myPiece = multiplier * colorMult[pcolor(p)]
+        score += pieceValue(p) * myPiece * count_ones(pieces(b, p).val)
+    end
+    d >= 3 && @info score
+    attacked = attacked_with_pieces(b, sidetomove(b))
+    for s in attacked
+        score += pieceValue(pieceon(b, s)) ÷ 40
+    end
+    undefended = attacked_but_undefended(b, sidetomove(b), attacked)
+    for s in undefended
+        score += pieceValue(pieceon(b, s)) ÷ 2
+    end
+    #
+    attacked = attacked_with_pieces(b, -sidetomove(b))
+    for s in attacked
+        score -= pieceValue(pieceon(b, s)) ÷ 50
+    end
+    undefended = attacked_but_undefended(b, -sidetomove(b), attacked)
+    for s in undefended
+        score -= pieceValue(pieceon(b, s)) ÷ 3
+    end
+    score += pawnEval(b, c)
+    score -= pawnEval(b, -c)
+    score += length(moves(b)) ÷ 2
+    u = donullmove!(b)
+    score -= length(moves(b)) ÷ 2
+    undomove!(b, u)
+    return score
 end
