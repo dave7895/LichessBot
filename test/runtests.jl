@@ -1,6 +1,8 @@
 using LichessBot
 using Test
 
-@testset "LichessBot.jl" begin
+@time begin
+    include("eval.jl")
+    include("netcode.jl")
     # Write your tests here.
 end
