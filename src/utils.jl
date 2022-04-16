@@ -28,3 +28,34 @@ function setDefaultToken!(tok)
         JSON.parse(String(HTTP.get(baseUrl * "/account", defaultHeader).body))["id"]
     nothing
 end
+
+function countbits(n)
+    c = 0
+    while n != 0
+        c += 1
+        n &= n - 1
+    end
+    c
+end
+
+function isempty(p::Piece)
+    p == EMPTY
+end
+
+function randomenginegame(d = 3; evalFunc = simpleEval)
+    game = Game()
+    while !isterminal(game)
+        move = LichessBot.negamax(
+            game,
+            d,
+            true,
+            -typemax(Int),
+            typemax(Int);
+            evalFunc = evalFunc,
+        )
+        domove!(game, move)
+        print("\r", ply(game))
+    end
+    println()
+    game
+end
