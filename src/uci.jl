@@ -4,12 +4,19 @@ ucinewgame() = engineGame{SimpleGame}(SimpleGame())
 
 function position!(eg::engineGame, commands)
     g = SimpleGame()
+    endindex = 1
     if commands[1] == "fen"
         deleteat!(commands, 1)
-        g = SimpleGame(commands[1])
+        endindex = findlast(s -> isdigit(s[1]), commands)
+        s = join(commands[1:endindex], ' ')
+        println(s)
+        g = SimpleGame(fromfen(s))
+        #deleteat!(commands, 1)
     end
-    deleteat!(commands, 1)
-    #eg.g = g
+    for i = 1:endindex
+        deleteat!(commands, 1)
+    end
+    eg.g = g
     g
 end
 
@@ -77,6 +84,7 @@ function go!(eg::engineGame, commands; stop = Ref(false))
         move = @async negamax(
             eg.g,
             eg.depth,
+            1,
             true;
             stop = stop,
             uci = true,
@@ -115,18 +123,27 @@ function uci_listen(; id = true)
         ln == "isready" && break
         ln == "quit" && return
     end
-    @time iterativeDeepening(Game(), Millisecond(100), Ref(1); evalFunc=pstFull)
+    @time iterativeDeepening(
+        Game(),
+        Millisecond(100),
+        Ref(1);
+        evalFunc = pstFull,
+    )
     eg = engineGame{SimpleGame}(SimpleGame())
     st = Ref{Bool}(false) #Channel{Bool}(5)
-    position!(eg, ["startpos"])
+    fenArr = ["fen", split("rnb1kbnr/pp1p1ppp/4p3/1Bp3q1/8/2P1P3/PP1P1PPP/RNBQK1NR w KQkq - 0 1")...]
+    @time position!(eg, ["fen", split("rnb1kbnr/pp1p1ppp/4p3/1Bp3q1/8/2P1P3/PP1P1PPP/RNBQK1NR w KQkq - 0 1")...])
+    println(board(eg.g))
+    println(moves(board(eg.g)))
     moves!(eg, ["a2a3"])
+
     uciisready()
     while true
         @debug(st[])#=isready(st)=#
         #uciisready()
         ln = readline()
         @debug("read line")
-        commands = split(lowercase(ln))
+        commands = split(ln)
         #println("info string $commands")
         startLength = length(commands) + 1
         while !isempty(commands) && length(commands) < startLength
@@ -141,7 +158,7 @@ function uci_listen(; id = true)
             end
             if com[] == "ucinewgame"
                 eg = ucinewgame()
-                uciisready()
+                #uciisready()
                 break
             end
             if com[] == "position"
@@ -149,7 +166,8 @@ function uci_listen(; id = true)
                 eg.g = position!(eg, commands)
                 #println("position returned")
                 if isempty(commands)
-                    uciisready()
+                    @debug "commands emptied"
+                    #uciisready()
                     break
                 end
             end
@@ -157,13 +175,14 @@ function uci_listen(; id = true)
                 deleteat!(commands, 1)
                 moves!(eg, commands)
                 if isempty(commands)
-                    uciisready()
+                    #uciisready()
                     break
                 end
             end
             if com[] == "go"
                 @debug("eg.depth = $(eg.depth)")
                 deleteat!(commands, 1)
+                st[] = false
                 go!(eg, commands; stop = st)
                 @debug("go rturned")
                 isempty(commands) && break
