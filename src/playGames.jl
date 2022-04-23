@@ -9,12 +9,19 @@ function makeMove(id::String, move::Move)
     @debug("made move")
 end
 
-function makeMove!(id::String, b::Board; variant = "standard")
+function makeMove!(id::String, b::Board; variant = "standard", time=nothing)
     @debug "arrived in makeMove!"
-    move = iterativeDeepening(Game(b), Second(1), Ref(3); evalFunc=pstAndMate) #chooseMove(b; variant = variant)
+    println(variant)
+    time = isnothing(time) ? Second(1) : time
+    move = Move(0)
+    if variant=="threecheck"
+        move = iterativeDeepening(Game(b), time, Ref(3); evalFunc=threeCheckPst, uci=true) #chooseMove(b; variant = variant)
+    else
+        move = iterativeDeepening(Game(b), time, Ref(3); evalFunc=pstAndMate, uci=true) #chooseMove(b; variant = variant)
+    end
     #move = rand(moves(b))
     @debug("chose move $move")
-    makeMove(id, move)
+    !isempty(id) && makeMove(id, move)
     domove!(b, move)
     @info("made! move")
     return tostring(move)
@@ -110,7 +117,7 @@ end
 function gameCallback(http::IO)
     id = ""
     variant = nothing
-    myColor = nothing
+    myColor = BLACK
     lastMove = nothing
     b = startboard()
     while !eof(http)
@@ -183,7 +190,13 @@ function gameCallback(http::IO)
                 end
                 if sidetomove(b) == myColor
                     @debug("starting to make move, still at streamGame")
-                    lastMove = @time makeMove!(id, b, variant = variant)
+                    colorstring = myColor == WHITE ? "w" : "b"
+                    leftTime = Millisecond(state[colorstring*"time"])
+                    inc = Millisecond(state[colorstring*"inc"])
+                    sumTime = leftTime ÷ 40 + inc
+                    availableTime = sumTime > leftTime ? (leftTime * 5)÷10 : sumTime
+                    println(availableTime)
+                    lastMove = @time makeMove!(id, b; variant = variant, time=availableTime)
                     @debug("to make move")
                 end
                 @show b
@@ -280,13 +293,13 @@ function eventsCallback(http::IO)
                 variant =
                     lowercase(state["challenge"]["variant"]["key"])
                 challengeId = state["challenge"]["id"]
-                @debug("""incoming $variant challenge
+                @info("""incoming $variant challenge
                             from $challenger
                             with id $challengeId""")
                 if lowercase(challenger) == lowercase(myId)
                     continue
                 end
-                if variant != "standard" #=in [
+                if !(variant in ["standard", "threecheck"]) #=in [
                     "racingkings",
                     "horde",
                     "kingofthehill",

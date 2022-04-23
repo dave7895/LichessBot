@@ -1,0 +1,1 @@
+cutechess-cli -engine name="Moinsen" cmd=./uciwrapper.jl dir=/home/dave/LichessBot.jl -engine cmd=./uciwrapper.jl dir=/home/dave/botDiff/LichessBot.jl -each tc=0/5+0.05 proto=uci -maxmoves 150 -games 2 -repeat -rounds 400 -openings file=noob_3moves.epd format=epd order=random -resultformat wide2 -ratinginterval 20 $*

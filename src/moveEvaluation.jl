@@ -201,7 +201,7 @@ end
 
 colorMult = Dict{Chess.PieceColor,Int}(((Chess.WHITE, 1), (Chess.BLACK, -1)))
 
-pVals = [100, 300, 300, 500, 900, 0, -1000]
+pVals = [100, 300, 300, 500, 900, 1000, -1000]
 
 function pieceValue(p::Piece)
     pVals[ptype(p).val%8]
@@ -281,7 +281,8 @@ function reallySimpleEval(b::Board, d::Integer = 1; matescore::Integer = 10000)
     if isdraw(b)
         return 0
     end
-    any(m->LichessBot.move_is_mate(b,m), moves(b)) && return max(d, 1) * matescore
+    any(m -> LichessBot.move_is_mate(b, m), moves(b)) &&
+        return max(d, 1) * matescore
     c = sidetomove(b)
     multiplier = colorMult[c]
     for i = 1:14
@@ -315,4 +316,30 @@ function reallySimpleEval(b::Board, d::Integer = 1; matescore::Integer = 10000)
     score -= length(moves(b)) ÷ 2
     undomove!(b, u)
     return score
+end
+
+checkVal = [90, 450, 5000]
+
+function threeCheckPst(g, d::Integer, table = psttable; matescore = 10000)
+    s = pstAndMate(g, d, table; matescore = matescore)
+    c = sidetomove(board(g))
+    bs = boards(g)
+    checkScore = 0
+    checkCounts =
+        Dict{Chess.PieceColor,Int}(((Chess.WHITE, 0), (Chess.BLACK, 0)))
+    for b in bs
+        if ischeck(b)
+            checkCounts[sidetomove(b)] += 1
+            checkScore +=
+                colorMult[sidetomove(b)] *
+                4 *
+                exp(2.4 * checkCounts[sidetomove(b)])
+        end
+    end
+    s + colorMult[c] * checkScore
+end
+
+function isrepetitiondraw(g::Union{Game,SimpleGame})
+    curBoard = board(g).key
+    count(b -> b.key == curBoard, boards(g)) >= 3
 end

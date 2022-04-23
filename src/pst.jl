@@ -33,7 +33,7 @@ function pstAndMate(g, d::Integer, table=psttable; matescore=10000)
     if ischeckmate(b)
         return -max(d, 1) * matescore
     end
-    if isdraw(b)
+    if isdraw(g) #|| isrepetitiondraw(g) # too slow
         return 0
     end
     any(m->LichessBot.move_is_mate(b,m), moves(b)) && return max(d, 1) * matescore
