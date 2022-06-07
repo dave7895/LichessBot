@@ -218,7 +218,7 @@ function iterativeDeepening(
         end
         if uci
             println(
-                "info depth $(initialDepth[]) score cp $(returnScore[]) pv $(join(tostring.(savedPvt[1]), ' '))",
+                "info depth $(initialDepth[]) score cp $(returnScore[]) pv $(tostring(savedPvt[1])))",
             )
         end
     end
