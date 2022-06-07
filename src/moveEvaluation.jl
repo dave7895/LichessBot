@@ -332,14 +332,39 @@ function threeCheckPst(g, d::Integer, table = psttable; matescore = 10000)
             checkCounts[sidetomove(b)] += 1
             checkScore +=
                 colorMult[sidetomove(b)] *
-                4 *
-                exp(2.4 * checkCounts[sidetomove(b)])
+                evalpoly(checkCounts[sidetomove(b)], (18050, -27100, 9250))
+                #4 *
+                #exp(2.4 * checkCounts[sidetomove(b)])
         end
     end
-    s + colorMult[c] * checkScore
+    s + colorMult[-c] * checkScore
 end
 
 function isrepetitiondraw(g::Union{Game,SimpleGame})
     curBoard = board(g).key
     count(b -> b.key == curBoard, boards(g)) >= 3
+end
+
+function quiesce(g::Union{Game, SimpleGame}, alpha, beta; evalFunc=pstAndMate)
+    bestEval = evalFunc(g, 1)
+    bestEval >= beta && return bestEval
+    if bestEval > alpha
+        alpha = bestEval
+    end
+    b = board(g)
+    for m in moves(b, MoveList(movecount(b)))
+        moveiscapture(b, m) || continue
+        domove!(g, m)
+        if ischeck(b)
+            back!(g)
+            continue
+        end
+        score = quiesce(g, -beta, -alpha; evalFunc=evalFunc)
+        back!(g)
+        if bestEval > alpha
+            score >= beta && return score
+            alpha = bestEval
+        end
+    end
+    return bestEval
 end

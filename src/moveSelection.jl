@@ -12,6 +12,7 @@ function negamax(
     #println("not TL negamax $stop, d=$depth")
     #println(evalFunc)
     if depth == 0 || isterminal(g)
+        #depth <= 0 && !ischeck(board(g)) && return quiesce(g, alpha, beta)
         return evalFunc(g, depth)
     end
     b = board(g)
@@ -92,7 +93,7 @@ function negamax(
     ordermoves!(legalMoves, b, ply, pvt)
     #legalMoves = ml.moves #shuffle(moves(b))
     topMove = legalMoves[1]
-    @info topMove
+    #@info topMove
     bestEval = -typemax(Int)
     for m in legalMoves
         #=if isready(stop)
@@ -137,7 +138,7 @@ function negamax(
 end
 
 function ordermoves!(ms::MoveList, b::Board, ply::Int = 0, pvt = nothing)
-    values = [matDiff(m, b) for m in ms]
+    values = [100*see(b, m) for m in ms]#[matDiff(m, b) for m in ms]
     if !isnothing(pvt)
         idx = findfirst(x -> x == pvt[ply], ms)
         if !isnothing(idx)
@@ -188,7 +189,8 @@ function iterativeDeepening(
     end
     pvt = fill(Move(0), 32)
     savedPvt = copy(pvt)
-    initialDepth[] = 0
+    initialDepth[] = 1
+    stoptime = now() + (referenceTime * 12 ÷ 10)
     while (now() - starttime) < referenceTime #&& !isready(stop)
         @debug ("some time left, d=$(initialDepth[])")
         #=if isready(stop)
@@ -215,7 +217,9 @@ function iterativeDeepening(
             pvt = fill(Move(0), 32)
         end
         if uci
-            println("info depth $(initialDepth[]) score cp $(returnScore[]) pv $(join(tostring.(savedPvt[1:max(1, initialDepth[]-1)]), ' '))")
+            println(
+                "info depth $(initialDepth[]) score cp $(returnScore[]) pv $(join(tostring.(savedPvt[1]), ' '))",
+            )
         end
     end
     if uci

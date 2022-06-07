@@ -14,7 +14,7 @@ function makeMove!(id::String, b::Board; variant = "standard", time=nothing)
     println(variant)
     time = isnothing(time) ? Second(1) : time
     move = Move(0)
-    if variant=="threecheck"
+    if lowercase(variant)=="threecheck"
         move = iterativeDeepening(Game(b), time, Ref(3); evalFunc=threeCheckPst, uci=true) #chooseMove(b; variant = variant)
     else
         move = iterativeDeepening(Game(b), time, Ref(3); evalFunc=pstAndMate, uci=true) #chooseMove(b; variant = variant)
@@ -299,14 +299,14 @@ function eventsCallback(http::IO)
                 if lowercase(challenger) == lowercase(myId)
                     continue
                 end
-                if !(variant in ["standard", "threecheck"]) #=in [
+                if !(variant in ["standard", "threecheck", "chess960"]) || state["challenge"]["speed"] == "correspondence"#=in [
                     "racingkings",
                     "horde",
                     "kingofthehill",
                     "antichess",
                     "crazyhouse",
                 ]=#
-                    @debug("declaing challenge with variant $variant")
+                    @debug("declining challenge with variant $variant and speed $(state["challenge"]["speed"])")
                     specificUrl =
                         challengeUrl * "/$challengeId/decline"
                     HTTP.request("POST", specificUrl, defaultHeader)

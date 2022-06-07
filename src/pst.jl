@@ -28,7 +28,7 @@ function pstFull(g::Union{Game,SimpleGame}, d::Integer=1, table=psttable)
     pstEval(g, d, table, c) - pstEval(g, d, table, -c)
 end
 
-function pstAndMate(g, d::Integer, table=psttable; matescore=10000)
+function pstAndMate(g, d::Integer=1, table=psttable; matescore=10000)
     b = typeof(g) == Board ? g : board(g)
     if ischeckmate(b)
         return -max(d, 1) * matescore
