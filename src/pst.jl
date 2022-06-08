@@ -1,4 +1,4 @@
-psttable = readdlm(pkgdir(@__MODULE__)*"/src/pst.txt", Int)
+psttable = readdlm(pkgdir(@__MODULE__)*"/src/transposedpst.txt", Int)
 
 function pst(p::Piece, sq::Square, table=psttable)::Real
     sqval = (pcolor(p) == WHITE ? sq.val : ((sq.val - 1) ⊻ 7) + 1)::Int
